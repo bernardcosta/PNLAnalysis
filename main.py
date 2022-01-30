@@ -6,10 +6,14 @@ from datetime import datetime
 import settings
 import argparse
 import pandas as pd
+from dotenv import load_dotenv
+import os
+import logging
+log = logging.getLogger(__name__)
 
 
 def request_coins(assets_file, breakdown=False):
-    print('Calculating assets...', end='', flush=True)
+    log.info('Calculating assets...')
     with open(assets_file) as f:
         assets = json.load(f)
 
@@ -23,7 +27,7 @@ def request_coins(assets_file, breakdown=False):
         response = requests.get(url, headers=settings.HEADERS).json()
         # if final asset from file (which is EURO)
         if i == len(assets) - 1:
-            print("Done")
+            log.info("Done")
             if breakdown:
                 # In case there are multiple records for the same coin
                 details = pd.DataFrame(breakdown_details).groupby("coin").sum().reset_index()
@@ -32,7 +36,7 @@ def request_coins(assets_file, breakdown=False):
                     if val > 0:
                         print(coin)
                         details.loc[details.coin == coin, "contribution"] = val
-                print(details)
+                log.info(details)
                 return total_usd / float(response["price"]), float(asset["Amount"]), details
             else:
                 return total_usd / float(response["price"]), float(asset["Amount"])
@@ -45,19 +49,22 @@ def request_coins(assets_file, breakdown=False):
 
 
 if __name__ == "__main__":
+    load_dotenv()
+    logging.basicConfig(level=logging.INFO, format='[%(asctime)s-%(levelname)s] %(name)s: %(message)s')
+    logging.getLogger("elasticsearch").setLevel(logging.WARNING)
     parser = argparse.ArgumentParser(description='Assets')
     parser.add_argument("--info_only", "-o", action='store_true', default=False, help="Only show assets details without any database I/O")
     parser.add_argument("--file", "-f", default="inputs/assets.json", help="json file to calculate current assets price")
     args = parser.parse_args()
 
     assets_net_worth, contribution, coins = request_coins(args.file, breakdown=True)
-    print(f'Total: {assets_net_worth}\nContribution: {contribution}')
+    log.info(f'Total: {assets_net_worth}\nContribution: {contribution}')
 
     if not args.info_only:
-        es = Elasticsearch([{'host':'localhost', 'port':9200}])
-        response = es.search(index="finance-investments", body=settings.QUERY_LAST_DATA)
+        es = Elasticsearch([{'host':os.getenv('HOST'), os.getenv('PORT'):9200}])
+        response = es.search(index=os.getenv('MAIN_INDEX'), body=settings.QUERY_LAST_DATA)
         if not response['hits']['hits']:
-            print("Empty index...inputing first document.")
+            log.warning("Empty index...inputing first document.")
             last_balance = 0
             cumulative_amount = 0
         else:
@@ -66,7 +73,7 @@ if __name__ == "__main__":
             last_balance = float(query_data['balance'])
 
         profit_change = assets_net_worth - last_balance
-        print(f'profit change: {profit_change}')
+        log.info(f'profit change: {profit_change}')
         input = {
           "account": "Binance+Exodus",
           "amount":0.0,
@@ -81,17 +88,16 @@ if __name__ == "__main__":
         input["date"] = date.replace(" ", "T")
         input["interval_change"] = profit_change
         input["balance"] = assets_net_worth
-        print(f'Cumulative amount: {input["cumulative_amount"]}')
-        print(input)
-        print("===========================")
+        log.info(f'Cumulative amount: {input["cumulative_amount"]}')
+        log.info("===========================")
 
-        res = es.index(index="finance-investments", body=input)
-        print(res)
-        print("- - -")
+        res = es.index(index=os.getenv('MAIN_INDEX'), body=input)
+
         final_date = input["date"]
 
         input2 = coins.to_dict(orient="records")
+        log.info('Adding individual coin data to server')
         for record in input2:
             record['date'] = final_date
             # print(record)
-            exchangeres = es.index(index="finance-exchange", body=record)
+            exchangeres = es.index(index=os.getenv('SECONDARY_INDEX'), body=record)
