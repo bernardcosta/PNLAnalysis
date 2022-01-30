@@ -47,18 +47,25 @@ def request_coins(assets_file, breakdown=False):
             if breakdown:
                 breakdown_details.append({"coin":asset["Coin"], "value": value, "coinAmount": asset["Amount"], "contribution":0.0})
 
-
-if __name__ == "__main__":
-    load_dotenv()
+def setup_logging():
     logging.basicConfig(level=logging.INFO, format='[%(asctime)s-%(levelname)s] %(name)s: %(message)s')
     logging.getLogger("elasticsearch").setLevel(logging.WARNING)
+
+def setup_cli_args():
     parser = argparse.ArgumentParser(description='Assets')
     parser.add_argument("--info_only", "-o", action='store_true', default=False, help="Only show assets details without any database I/O")
     parser.add_argument("--file", "-f", default="inputs/assets.json", help="json file to calculate current assets price")
-    args = parser.parse_args()
+    arguments = parser.parse_args()
+    return arguments
+
+if __name__ == "__main__":
+    load_dotenv()
+    setup_logging()
+    args = setup_cli_args()
 
     assets_net_worth, contribution, coins = request_coins(args.file, breakdown=True)
-    log.info(f'Total: {assets_net_worth}\nContribution: {contribution}')
+    log.info(f'Total: {assets_net_worth}')
+    log.info(f'Contribution: {contribution}')
 
     if not args.info_only:
         es = Elasticsearch([{'host':os.getenv('HOST'), os.getenv('PORT'):9200}])
