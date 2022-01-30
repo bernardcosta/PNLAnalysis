@@ -23,8 +23,8 @@ def request_coins(assets_file, breakdown=False):
 
         coin = f'{asset["Coin"]}{asset["To"]}'
 
-        url = f'{settings.API}?symbol={coin}'
-        response = requests.get(url, headers=settings.HEADERS).json()
+        url = f'{os.getenv("API")}?symbol={coin}'
+        response = requests.get(url, headers=json.loads(os.getenv("HEADERS"))).json()
         # if final asset from file (which is EURO)
         if i == len(assets) - 1:
             log.info("Done")
@@ -82,14 +82,15 @@ if __name__ == "__main__":
         profit_change = assets_net_worth - last_balance
         log.info(f'profit change: {profit_change}')
         input = {
-          "account": "Binance+Exodus",
+          "account": os.getenv("PRIMARY_ACCOUNT"),
           "amount":0.0,
           "fee": 0,
           "coin": "EUR"
         }
         if contribution > 0:
             input["amount"] = contribution
-            input["account"] = "Binance"
+            input["account"] = os.getenv("SECONDARY_ACCOUNT")
+
         input["cumulative_amount"] = cumulative_amount + contribution
         date = str(datetime.now())+"+01:00"
         input["date"] = date.replace(" ", "T")
