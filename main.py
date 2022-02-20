@@ -34,7 +34,7 @@ def request_coins(assets_file, breakdown=False):
 
                 for coin, val in asset["split_fraction"].items():
                     if val > 0:
-                        print(coin)
+                        log.info(coin)
                         details.loc[details.coin == coin, "contribution"] = val
                 log.info(details)
                 return total_usd / float(response["price"]), float(asset["Amount"]), details
@@ -84,12 +84,13 @@ if __name__ == "__main__":
         input = {
           "account": os.getenv("PRIMARY_ACCOUNT"),
           "amount":0.0,
-          "fee": 0,
+          "fee": 0.0,
           "coin": "EUR"
         }
         if contribution > 0:
             input["amount"] = contribution
             input["account"] = os.getenv("SECONDARY_ACCOUNT")
+            input["fee"] = 0.12
 
         input["cumulative_amount"] = cumulative_amount + contribution
         date = str(datetime.now())+"+01:00"
