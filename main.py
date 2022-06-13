@@ -1,14 +1,13 @@
 import requests
 import json
-import pickle
-from elasticsearch import Elasticsearch
-from datetime import datetime
-import settings
 import argparse
 import pandas as pd
 from dotenv import load_dotenv
+import psycopg2
 import os
+import utils
 import logging
+from datetime import datetime
 log = logging.getLogger(__name__)
 
 
@@ -17,22 +16,24 @@ def request_coins(assets_file, breakdown=False):
     with open(assets_file) as f:
         assets = json.load(f)
 
-    total_usd=0
+    total_usd = 0
     breakdown_details = []
     for i, asset in enumerate(assets):
 
         coin = f'{asset["Coin"]}{asset["To"]}'
 
         url = f'{os.getenv("API")}?symbol={coin}'
-        response = requests.get(url, headers=json.loads(os.getenv("HEADERS"))).json()
+        response = requests.get(
+            url, headers=json.loads(os.getenv("HEADERS"))).json()
         # if final asset from file (which is EURO)
         if i == len(assets) - 1:
             log.info("Done")
             if breakdown:
                 # In case there are multiple records for the same coin
-                details = pd.DataFrame(breakdown_details).groupby("coin").sum().reset_index()
+                details = pd.DataFrame(breakdown_details).groupby(
+                    "coin").sum().reset_index()
 
-                for coin, val in asset["split_fraction"].items():
+                for coin, val in asset["split_eur"].items():
                     if val > 0:
                         log.info(coin)
                         details.loc[details.coin == coin, "contribution"] = val
@@ -45,68 +46,70 @@ def request_coins(assets_file, breakdown=False):
             total_usd += value
 
             if breakdown:
-                breakdown_details.append({"coin":asset["Coin"], "value": value, "coinAmount": asset["Amount"], "contribution":0.0})
+                breakdown_details.append(
+                    {"coin": asset["Coin"], "value": value, "coinAmount": asset["Amount"], "contribution": 0.0})
+
 
 def setup_logging():
-    logging.basicConfig(level=logging.INFO, format='[%(asctime)s-%(levelname)s] %(name)s: %(message)s')
+    logging.basicConfig(
+        level=logging.INFO, format='[%(asctime)s-%(levelname)s] %(name)s: %(message)s')
     logging.getLogger("elasticsearch").setLevel(logging.WARNING)
+
 
 def setup_cli_args():
     parser = argparse.ArgumentParser(description='Assets')
-    parser.add_argument("--info_only", "-o", action='store_true', default=False, help="Only show assets details without any database I/O")
-    parser.add_argument("--file", "-f", default="inputs/assets.json", help="json file to calculate current assets price")
+    parser.add_argument("--info_only", "-o", action='store_true', default=False,
+                        help="Only show assets details without any database I/O")
+    parser.add_argument("--file", "-f", default="inputs/assets.json",
+                        help="json file to calculate current assets price")
     arguments = parser.parse_args()
     return arguments
+
 
 if __name__ == "__main__":
     load_dotenv()
     setup_logging()
     args = setup_cli_args()
 
-    assets_net_worth, contribution, coins = request_coins(args.file, breakdown=True)
+    assets_net_worth, contribution, coins = request_coins(
+        args.file, breakdown=True)
     log.info(f'Total: {assets_net_worth}')
     log.info(f'Contribution: {contribution}')
 
-    if not args.info_only:
-        es = Elasticsearch([{'host':os.getenv('HOST'), os.getenv('PORT'):9200}])
-        response = es.search(index=os.getenv('MAIN_INDEX'), body=settings.QUERY_LAST_DATA)
-        if not response['hits']['hits']:
-            log.warning("Empty index...inputing first document.")
-            last_balance = 0
-            cumulative_amount = 0
-        else:
-            query_data = response['hits']['hits'][0]['_source']
-            cumulative_amount = float(query_data['cumulative_amount'])
-            last_balance = float(query_data['balance'])
+    db = utils.Postgres(dict_cursor=True)
+
+    query = "SELECT * FROM {} ORDER BY date_created DESC LIMIT 1;".format(os.environ['DB_TABLE'])
+    db.default_cursor.execute(query)
+    last_ingest = db.default_cursor.fetchone()
+
+    if not last_ingest:
+        log.warning("Empty table... inputting first document.")
+        last_balance = 0
+        cumulative_amount = 0
+    else:
+        last_ingest = dict(last_ingest)
+        print(last_ingest)
+        cumulative_amount = float(last_ingest['cumulative_amount'])
+        last_balance = float(last_ingest['total_balance'])
 
         profit_change = assets_net_worth - last_balance
         log.info(f'profit change: {profit_change}')
-        input = {
-          "account": os.getenv("PRIMARY_ACCOUNT"),
-          "amount":0.0,
-          "fee": 0.0,
-          "coin": "EUR"
-        }
+
+        amount = 0.0
+        fee = 0.0
         if contribution > 0:
-            input["amount"] = contribution
-            input["account"] = os.getenv("SECONDARY_ACCOUNT")
-            input["fee"] = 0.12
+            amount = contribution
+            fee = 0.02
 
-        input["cumulative_amount"] = cumulative_amount + contribution
-        date = str(datetime.now())+"+01:00"
-        input["date"] = date.replace(" ", "T")
-        input["interval_change"] = profit_change
-        input["balance"] = assets_net_worth
-        log.info(f'Cumulative amount: {input["cumulative_amount"]}')
+        cumulative_amount = cumulative_amount + contribution
+        date = str(datetime.now()) + "+01:00"
+        date = date.replace(" ", "T")
+        change = profit_change
+        total_balance = assets_net_worth
+        log.info(f'Cumulative amount: {cumulative_amount}')
         log.info("===========================")
-
-        res = es.index(index=os.getenv('MAIN_INDEX'), body=input)
-
-        final_date = input["date"]
-
-        input2 = coins.to_dict(orient="records")
-        log.info('Adding individual coin data to server')
-        for record in input2:
-            record['date'] = final_date
-            # print(record)
-            exchangeres = es.index(index=os.getenv('SECONDARY_INDEX'), body=record)
+        #
+        insert = "INSERT INTO test_crypto (amount, fee, cumulative_amount, date_created, change, total_balance )" \
+                 "VALUES (%s, %s, %s, %s, %s, %s)"
+        db.default_cursor.execute(insert, (amount, fee, cumulative_amount, datetime.now(), change, total_balance,))
+        db.connection.commit()
