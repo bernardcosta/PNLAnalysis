@@ -88,7 +88,6 @@ if __name__ == "__main__":
         cumulative_amount = 0
     else:
         last_ingest = dict(last_ingest)
-        print(last_ingest)
         cumulative_amount = float(last_ingest['cumulative_amount'])
         last_balance = float(last_ingest['total_balance'])
 

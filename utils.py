@@ -18,7 +18,7 @@ class Postgres:
 
     def connect_to_db(self):
         self.connection = psycopg2.connect(host=os.environ['DB_HOST'], user=os.environ['DB_USER'],
-                                           dbname=os.environ['DB_NAME'], port=os.environ['DB_PORT'])
+                                           dbname=os.environ['DB_NAME'], port=os.environ['DB_PORT'],password=os.environ['DB_PASSWD'])
         log.info('Connected to database {}'.format(os.environ['DB_NAME']))
 
     def create_cursor(self):
