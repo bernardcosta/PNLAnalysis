@@ -8,6 +8,7 @@ import os
 import utils
 import logging
 from datetime import datetime
+from psycopg2 import sql
 log = logging.getLogger(__name__)
 
 
@@ -80,39 +81,40 @@ if __name__ == "__main__":
     try:
 
         query = "SELECT * FROM {} ORDER BY date_created DESC LIMIT 1;".format(os.environ['DB_TABLE'])
-        db.default_cursor.execute(query)
+        db.default_cursor.execute(sql.SQL(query.format(sql.Identifier(os.environ['DB_TABLE']))))
         last_ingest = db.default_cursor.fetchone()
+        print(last_ingest)
 
-        if not last_ingest:
-            log.warning("Empty table... inputting first document.")
-            last_balance = 0
-            cumulative_amount = 0
-        else:
-            last_ingest = dict(last_ingest)
-            cumulative_amount = float(last_ingest['cumulative_amount'])
-            last_balance = float(last_ingest['total_balance'])
-
-            profit_change = assets_net_worth - last_balance
-            log.info(f'profit change: {profit_change}')
-
-            amount = 0.0
-            fee = 0.0
-            if contribution > 0:
-                amount = contribution
-                fee = 0.02
-
-            cumulative_amount = cumulative_amount + contribution
-            date = str(datetime.now()) + "+01:00"
-            date = date.replace(" ", "T")
-            change = profit_change
-            total_balance = assets_net_worth
-            log.info(f'Cumulative amount: {cumulative_amount}')
-            log.info("===========================")
-            #
-            insert = "INSERT INTO test_crypto (amount, fee, cumulative_amount, date_created, change, total_balance )" \
-                     "VALUES (%s, %s, %s, %s, %s, %s)"
-            db.default_cursor.execute(insert, (amount, fee, cumulative_amount, datetime.now(), change, total_balance,))
-            db.connection.commit()
+        # if not last_ingest:
+        #     log.warning("Empty table... inputting first document.")
+        #     last_balance = 0
+        #     cumulative_amount = 0
+        # else:
+        #     last_ingest = dict(last_ingest)
+        #     cumulative_amount = float(last_ingest['cumulative_amount'])
+        #     last_balance = float(last_ingest['total_balance'])
+        #
+        #     profit_change = assets_net_worth - last_balance
+        #     log.info(f'profit change: {profit_change}')
+        #
+        #     amount = 0.0
+        #     fee = 0.0
+        #     if contribution > 0:
+        #         amount = contribution
+        #         fee = 0.02
+        #
+        #     cumulative_amount = cumulative_amount + contribution
+        #     date = str(datetime.now()) + "+01:00"
+        #     date = date.replace(" ", "T")
+        #     change = profit_change
+        #     total_balance = assets_net_worth
+        #     log.info(f'Cumulative amount: {cumulative_amount}')
+        #     log.info("===========================")
+        #     #
+        #     insert = "INSERT INTO test_crypto (amount, fee, cumulative_amount, date_created, change, total_balance )" \
+        #              "VALUES (%s, %s, %s, %s, %s, %s)"
+        #     db.default_cursor.execute(insert, (amount, fee, cumulative_amount, datetime.now(), change, total_balance,))
+        #     db.connection.commit()
 
     except Exception as e:
         import sys
