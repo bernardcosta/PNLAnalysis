@@ -80,11 +80,9 @@ if __name__ == "__main__":
     db = utils.Postgres(dict_cursor=True)
     try:
 
-        query = "SELECT * FROM {} ORDER BY date_created DESC LIMIT 1;".format(os.environ['DB_TABLE'])
-        db.default_cursor.execute(sql.SQL(query.format(sql.Identifier(os.environ['DB_TABLE']))))
+        query = "SELECT * FROM {} ORDER BY date_created DESC LIMIT 1;"
+        db.default_cursor.execute(sql.SQL(query).format(sql.Identifier(os.environ['DB_TABLE'])))
         last_ingest = db.default_cursor.fetchone()
-        print(last_ingest)
-
         if not last_ingest:
             log.warning("Empty table... inputting first document.")
             last_balance = 0
@@ -116,7 +114,7 @@ if __name__ == "__main__":
             VALUES (%s, %s, %s, %s, %s, %s)
             """
 
-            db.default_cursor.execute(sql.SQL(insert.format(sql.Identifier(os.environ['DB_TABLE']))),
+            db.default_cursor.execute(sql.SQL(insert).format(sql.Identifier(os.environ['DB_TABLE'])),
                                       (amount, fee, cumulative_amount, datetime.now(), change, total_balance,))
             db.connection.commit()
 
