@@ -61,7 +61,7 @@ def setup_cli_args():
     parser = argparse.ArgumentParser(description='Assets')
     parser.add_argument("--info_only", "-o", action='store_true', default=False,
                         help="Only show assets details without any database I/O")
-    parser.add_argument("--file", "-f", default="inputs/assets.json",
+    parser.add_argument("--file", "-f", default=os.path.abspath("inputs/assets.json"),
                         help="json file to calculate current assets price")
     arguments = parser.parse_args()
     return arguments
@@ -71,6 +71,7 @@ if __name__ == "__main__":
     load_dotenv()
     setup_logging()
     args = setup_cli_args()
+    log.info("Input file {}".format(args.file))
 
     assets_net_worth, contribution, coins = request_coins(
         args.file, breakdown=True)
