@@ -9,6 +9,7 @@ import utils
 import logging
 from datetime import datetime
 from psycopg2 import sql
+import pytz
 log = logging.getLogger(__name__)
 
 
@@ -103,8 +104,11 @@ if __name__ == "__main__":
                 fee = 0.02
 
             cumulative_amount = cumulative_amount + contribution
-            date = str(datetime.now()) + "+01:00"
-            date = date.replace(" ", "T")
+            d = datetime.datetime.now()
+            timezone = pytz.timezone(os.environ['TZ'])
+            d_aware = timezone.localize(d)
+            # date = str(datetime.now()) + "+01:00"
+            # date = date.replace(" ", "T")
             change = profit_change
             total_balance = assets_net_worth
             log.info(f'Cumulative amount: {cumulative_amount}')
@@ -116,7 +120,7 @@ if __name__ == "__main__":
             """
 
             db.default_cursor.execute(sql.SQL(insert).format(sql.Identifier(os.environ['DB_TABLE'])),
-                                      (amount, fee, cumulative_amount, datetime.now(), change, total_balance,))
+                                      (amount, fee, cumulative_amount, d_aware, change, total_balance,))
             db.connection.commit()
 
     except Exception as e:
