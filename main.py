@@ -104,7 +104,7 @@ if __name__ == "__main__":
                 fee = 0.02
 
             cumulative_amount = cumulative_amount + contribution
-            d = datetime.datetime.now()
+            d = datetime.now()
             timezone = pytz.timezone(os.environ['TZ'])
             d_aware = timezone.localize(d)
             # date = str(datetime.now()) + "+01:00"
